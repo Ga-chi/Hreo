@@ -6,6 +6,7 @@ const fs = require("fs");
 const cors = require("cors");
 const upload = multer({ dest: path.join(__dirname, "imgs/") }).single("icon");
 
+const db = require("./db");
 //创建服务器
 const app = express();
 //利用 multer 第三方包 multer 初始化上传图片函数
@@ -21,7 +22,7 @@ app.use(cors());
 //  * @param {*} file          文件路径
 //  * @param {*} defaultData   默认返回数据
 //  */
-function getFileData(file = "./json/user.json", defaultData = []) {
+function getFileData(file = "./json/list.json", defaultData = []) {
   // 同步写法可能会出现读取失败的情况
   try {
     // 通过 path 拼接绝对路径
@@ -35,9 +36,21 @@ function getFileData(file = "./json/user.json", defaultData = []) {
   }
 }
 
+function saveFileData(file = "./json/list.json", defaultData = []) {
+  try {
+    //通过path拼接绝对路径
+    const filePath = path.join(__dirname, file);
+
+    fs.writeFileSync(filePath, JSON.stringify(data));
+    return true;
+  } catch (error) {
+    //失败返回一个空数组
+    return false;
+  }
+}
 // 服务器在 3000 端口启动
 app.listen(3000, () => {
-  console.log("服务器开启： http://127.0.0.1:3000/login");
+  console.log("服务器开启： http://127.0.0.1:3000");
 });
 
 // get 姿势打开的首页
@@ -97,158 +110,109 @@ app.post("/login", (req, res) => {
     });
   }
 });
-//英雄列表
+// //英雄列表
 app.get("/list", (req, res) => {
-  console.log("请求对象", req);
-  console.log("响应对象", res);
-  //   const { id, name, skill, icon } = res.file;
-  const data = getFileData("./josn/list.json");
-  console.log(data.data);
-
-  res.send(data.data);
-});
-
-//英雄新增
-app.post("/add", upload, (req, res, next) => {
-  console.log("请求对象", req);
-  console.log("响应对象", res);
-  const { filename } = req.file;
-  const { name, skill } = req.body;
-  let data = getFileData("./josn/list.json");
-  console.log(data);
-  const newId = data.data.length + 1;
-  // console.log(newId);
-  //判断用户名和技能是否为空
-  // if(name!==''&&skill!==''){
-  // //图片参数错误
-  // //没有上传图片
-  // }
-  const newData = {
-    id: newId,
-    name: name,
-    skil: skill,
-    icon: filename
-  };
-  data.data.push(newData);
-  console.log(data);
-
-  fs.writeFileSync(
-    path.join(__dirname, "./josn/list.json"),
-    JSON.stringify(data)
-  );
-  // res.send(data);
-
-  res.send({
-    code: 200,
-    msg: "新增成功"
+  db.get({
+    success: result => {
+      res.send({
+        code: 200,
+        msg: "获取成功",
+        data: result
+      });
+    },
+    fail: err => {
+      res.send({
+        code: 400,
+        msg: "获取失败"
+      });
+    }
   });
 });
 
-//英雄删除
-app.get("/delete", (req, res) => {
-  console.log("请求对象", req);
-  console.log("响应对象", res);
-  const { id } = req.body;
-  // console.log(id);
-  if (id !== "") {
-    let data = getFileData("./josn/list.json");
-    // console.log(data);
-
-    const index = data.data.findIndex(item => item.id == id);
-    // console.log(index);
-    if (index === -1) {
+// //英雄新增
+app.post("/add", upload, (req, res, next) => {
+  const { name, skill } = req.body;
+  const { filename } = req.file;
+  db.add({
+    name,
+    skill,
+    icon: `/uploads/${filename}`,
+    success: result => {
+      res.send({
+        code: 200,
+        msg: "新增成功"
+      });
+    },
+    fail: err => {
       res.send({
         code: 400,
-        msg: "没有此ID"
+        msg: "新增失败"
       });
-    } else {
-      data.data.splice(index, 1);
-      // console.log(data);
+    }
+  });
+});
 
-      fs.writeFileSync(
-        path.join(__dirname, "./josn/list.json"),
-        JSON.stringify(data)
-      );
+// //英雄删除
+app.get("/delete", (req, res) => {
+  const { id } = req.query;
+  db.delete({
+    id,
+    success: result => {
       res.send({
         code: 200,
         msg: "删除成功"
       });
-    }
-  } else {
-    res.send({
-      code: 400,
-      msg: "参数错误"
-    });
-  }
-});
-
-//英雄查询
-app.get("/search", (req, res) => {
-  console.log("请求对象", req);
-  console.log("响应对象", res);
-  const { id } = req.query;
-
-  if (id !== "") {
-    let data = getFileData("./josn/list.json");
-    // console.log(data);
-
-    const index = data.data.findIndex(item => item.id == id);
-    // console.log(index);
-    if (index === -1) {
+    },
+    fail: err => {
       res.send({
         code: 400,
-        msg: "没有此id的英雄"
+        msg: "删除失败"
       });
-    } else {
-      // console.log(data);
+    }
+  });
+});
+
+// //英雄查询
+app.get("/search", (req, res) => {
+  const { id } = req.query;
+  db.search({
+    id,
+    success: result => {
       res.send({
         code: 200,
         msg: "查询成功",
-        data: data.data[index]
+        data: result
+      });
+    },
+    fail: err => {
+      res.send({
+        code: 400,
+        msg: "查询失败"
       });
     }
-  } else {
-    res.send({
-      code: 400,
-      msg: "参数错误"
-    });
-  }
+  });
 });
 
-//英雄编辑
+// //英雄编辑
 app.post("/edit", upload, (req, res, next) => {
-  console.log("请求对象", req);
-  console.log("响应对象", res);
   const { id, name, skill } = req.body;
   const { filename } = req.file;
-  //读取文件进行操作
-  let data = getFileData("./josn/list.json");
-  //根据id找到对应的英雄数据
-  const index = data.data.findIndex(item => item.id == id);
-  console.log(index);
-
-  if (index == false || id === "" || name === "" || skill === "") {
-    index;
-    res.send({
-      code: 400,
-      msg: "参数错误"
-    });
-  } else {
-    //修改
-    data.data[index] = {
-      id: index,
-      name: name,
-      skill: skill,
-      icon: filename
-    };
-    //重新写入list.json文件
-    fs.writeFileSync(
-      path.join(__dirname, "./josn/list.json"),
-      JSON.stringify(data)
-    );
-    res.send({
-      code: 200,
-      msg: "修改成功"
-    });
-  }
+  db.edit({
+    id,
+    name,
+    skill,
+    icon: `/uploads/${filename}`,
+    success: result => {
+      res.send({
+        code: 200,
+        msg: "编辑成功"
+      });
+    },
+    fail: err => {
+      res.send({
+        code: 400,
+        msg: "编辑失败"
+      });
+    }
+  });
 });
